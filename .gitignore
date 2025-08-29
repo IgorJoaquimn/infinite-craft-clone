@@ -1,0 +1,9 @@
+# Ignore the build directory
+build/
+
+# Ignore any auto-generated CMake files
+.cmake/
+
+# Ignore local editor/IDE files (optional)
+.vscode/
+.idea/
