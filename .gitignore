@@ -3,6 +3,7 @@ build/
 
 # Ignore any auto-generated CMake files
 .cmake/
+.cache/
 
 # Ignore local editor/IDE files (optional)
 .vscode/
