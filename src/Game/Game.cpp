@@ -1,5 +1,5 @@
 #include "Game.hpp"
-#include "Component/TextComponent.hpp"
+#include "Component/TextComponent/TextComponent.hpp"
 #include <iostream>
 
 // === GAME CLASS IMPLEMENTATION ===

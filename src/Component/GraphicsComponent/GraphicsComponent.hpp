@@ -1,7 +1,7 @@
 #ifndef GRAPHICS_COMPONENT_HPP
 #define GRAPHICS_COMPONENT_HPP
 
-#include "Component/Component.hpp"
+#include "Component/Component/Component.hpp"
 #include "Shader/Shader.hpp"
 #include <GL/glew.h>
 #include <glm/glm.hpp>

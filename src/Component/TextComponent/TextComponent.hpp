@@ -1,7 +1,7 @@
 #ifndef TEXT_COMPONENT_HPP
 #define TEXT_COMPONENT_HPP
 
-#include "Component/GraphicsComponent.hpp"
+#include "Component/GraphicsComponent/GraphicsComponent.hpp"
 #include "Font/FreeTypeFont.hpp"
 #include <GL/glew.h>
 #include <glm/glm.hpp>

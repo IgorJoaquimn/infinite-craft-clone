@@ -2,10 +2,10 @@
 #define GAME_HPP
 
 #include "Actor/Actor.hpp"
-#include "Core/Window.hpp"
-#include "Core/Renderer.hpp"
-#include "Core/InputManager.hpp"
-#include "Core/ResourceManager.hpp"
+#include "Core/Window/Window.hpp"
+#include "Core/Renderer/Renderer.hpp"
+#include "Core/InputManager/InputManager.hpp"
+#include "Core/ResourceManager/ResourceManager.hpp"
 #include <vector>
 #include <memory>
 #include <chrono>

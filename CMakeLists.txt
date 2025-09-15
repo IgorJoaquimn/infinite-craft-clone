@@ -26,14 +26,14 @@ set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 set(SOURCES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/Game/Game.cpp
+    ${SRC_DIR}/Actor/Actor.cpp
     ${SRC_DIR}/Shader/Shader.cpp
-    ${SRC_DIR}/Component/TextComponent.cpp
-    ${SRC_DIR}/TextObject/TextObject.cpp
+    ${SRC_DIR}/Component/TextComponent/TextComponent.cpp
     ${SRC_DIR}/Font/FreeTypeFont.cpp
-    ${SRC_DIR}/Core/Window.cpp
-    ${SRC_DIR}/Core/Renderer.cpp
-    ${SRC_DIR}/Core/InputManager.cpp
-    ${SRC_DIR}/Core/ResourceManager.cpp
+    ${SRC_DIR}/Core/Window/Window.cpp
+    ${SRC_DIR}/Core/Renderer/Renderer.cpp
+    ${SRC_DIR}/Core/InputManager/InputManager.cpp
+    ${SRC_DIR}/Core/ResourceManager/ResourceManager.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

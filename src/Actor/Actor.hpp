@@ -1,7 +1,7 @@
 #ifndef ACTOR_HPP
 #define ACTOR_HPP
 
-#include "Component/Component.hpp"
+#include "Component/Component/Component.hpp"
 #include <vector>
 #include <memory>
 #include <typeinfo>

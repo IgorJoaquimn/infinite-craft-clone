@@ -1,6 +1,6 @@
 #include "Renderer.hpp"
 #include "Actor/Actor.hpp"
-#include "Component/GraphicsComponent.hpp"
+#include "Component/GraphicsComponent/GraphicsComponent.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 
