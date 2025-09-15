@@ -26,7 +26,11 @@ set(SOURCES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/Game/Game.cpp
     ${SRC_DIR}/Shader/Shader.cpp
-    ${SRC_DIR}/TextObject/TextObject.cpp
+    ${SRC_DIR}/Component/TextComponent.cpp
+    ${SRC_DIR}/Core/Window.cpp
+    ${SRC_DIR}/Core/Renderer.cpp
+    ${SRC_DIR}/Core/InputManager.cpp
+    ${SRC_DIR}/Core/ResourceManager.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

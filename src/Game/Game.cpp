@@ -1,164 +1,251 @@
 #include "Game.hpp"
-#include "Shader/Shader.hpp"
-#include "TextObject/TextObject.hpp" // Make sure to include your TextObject
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h> // Include SDL_ttf
-#include <GL/glew.h>
+#include "Component/TextComponent.hpp"
 #include <iostream>
 
-// Include GLM for matrix transformations
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+// === GAME CLASS IMPLEMENTATION ===
 
-namespace {
-    constexpr int WINDOW_WIDTH = 800;
-    constexpr int WINDOW_HEIGHT = 600;
-    constexpr char WINDOW_TITLE[] = "Infinite Craft Clone";
-
-    bool initSDL() {
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-            std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
-            return false;
-        }
-        return true;
-    }
-
-    void setGLAttributes() {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    }
-
-    SDL_Window* createWindow() {
-        SDL_Window* window = SDL_CreateWindow(
-            WINDOW_TITLE,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            WINDOW_WIDTH, WINDOW_HEIGHT,
-            SDL_WINDOW_OPENGL
-        );
-        if (!window) {
-            std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
-        }
-        return window;
-    }
-
-    SDL_GLContext createGLContext(SDL_Window* window) {
-        SDL_GLContext context = SDL_GL_CreateContext(window);
-        if (!context) {
-            std::cerr << "OpenGL context could not be created! SDL_Error: " << SDL_GetError() << std::endl;
-        }
-        return context;
-    }
-
-    bool initGLEW() {
-        glewExperimental = GL_TRUE;
-        GLenum glewStatus = glewInit();
-        if (glewStatus != GLEW_OK) {
-            std::cerr << "GLEW initialization failed: " << glewGetErrorString(glewStatus) << std::endl;
-            return false;
-        }
-        return true;
-    }
-
-    GLuint createShaderProgram(const Shader& vertexShader, const Shader& fragmentShader) {
-        GLuint program = glCreateProgram();
-        glAttachShader(program, vertexShader.getID());
-        glAttachShader(program, fragmentShader.getID());
-        glLinkProgram(program);
-
-        GLint success;
-        glGetProgramiv(program, GL_LINK_STATUS, &success);
-        if (!success) {
-            char infoLog[512];
-            glGetProgramInfoLog(program, 512, nullptr, infoLog);
-            std::cerr << "Shader linking error: " << infoLog << std::endl;
-            glDeleteProgram(program);
-            return 0;
-        }
-        return program;
-    }
-
-    // Simplified cleanup function without triangle variables
-    void cleanup(SDL_GLContext glContext, SDL_Window* window) {
-        SDL_GL_DeleteContext(glContext);
-        SDL_DestroyWindow(window);
-        TTF_Quit();
-        SDL_Quit();
-    }
+Game::Game() 
+    : running_(false)
+    , initialized_(false) {
 }
 
-Game::Game() {}
-Game::~Game() {}
+Game::~Game() {
+    unload();
+}
 
 int Game::run() {
-    if (!initSDL()) return 1;
-
-    if (TTF_Init() == -1) {
-        std::cerr << "SDL_ttf could not initialize! TTF_Error: " << TTF_GetError() << std::endl;
-        SDL_Quit();
+    if (!load()) {
+        std::cerr << "Failed to initialize game!" << std::endl;
         return 1;
     }
 
-    setGLAttributes();
-    SDL_Window* window = createWindow();
-    SDL_GLContext glContext = createGLContext(window);
-    if (!initGLEW()) { /* ... error handling ... */ }
-
-    // --- Shaders ---
-    // We only need the text shaders now
-    Shader textVertexShader("shaders/text.vert", GL_VERTEX_SHADER);
-    Shader textFragmentShader("shaders/text.frag", GL_FRAGMENT_SHADER);
-    GLuint textShaderProgram = createShaderProgram(textVertexShader, textFragmentShader);
-    if (!textShaderProgram) { /* ... error handling ... */ return 1; }
-
-    // --- Game Objects ---
-    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28);
-    if (!font) {
-        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+    if (!loadContent()) {
+        std::cerr << "Failed to load game content!" << std::endl;
         return 1;
     }
-    SDL_Color textColor = { 255, 0, 0, 255 }; // Red text for debugging
-    TextObject myText(300.0f, 250.0f, "This should work!", font, textColor);
+
+    gameLoop();
     
-    std::cout << "TextObject created successfully" << std::endl;
-
-    // --- Projection Matrix for 2D Rendering ---
-    glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(WINDOW_WIDTH), 0.0f, static_cast<float>(WINDOW_HEIGHT));
-
-    // --- Main Loop ---
-    bool running = true;
-    SDL_Event event;
-    while (running) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT)
-                running = false;
-        }
-
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // --- Draw the text object ---
-        // Disable blending since we handle background in shader
-        glDisable(GL_BLEND);
-
-        glUseProgram(textShaderProgram);
-
-        // ADDED: Tell the shader to use texture unit 0 for the 'textTexture' sampler
-        glUniform1i(glGetUniformLocation(textShaderProgram, "textTexture"), 0);
-
-        // Set the projection matrix uniform
-        glUniformMatrix4fv(glGetUniformLocation(textShaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
-        
-        myText.render(); // Render the text object
-
-        SDL_GL_SwapWindow(window);
-    }
-
-    // --- Cleanup ---
-    TTF_CloseFont(font);
-    glDeleteProgram(textShaderProgram); // Clean up the text shader program
-    cleanup(glContext, window);
-
     return 0;
 }
+
+// === ACTOR MANAGEMENT ===
+
+void Game::addActor(std::unique_ptr<Actor> actor) {
+    actors_.push_back(std::move(actor));
+}
+
+void Game::removeActor(Actor* actor) {
+    actors_.erase(
+        std::remove_if(actors_.begin(), actors_.end(),
+            [actor](const std::unique_ptr<Actor>& a) {
+                return a.get() == actor;
+            }),
+        actors_.end()
+    );
+}
+
+const std::vector<std::unique_ptr<Actor>>& Game::getActors() const {
+    return actors_;
+}
+
+void Game::clearActors() {
+    actors_.clear();
+}
+
+// === LIFECYCLE FUNCTIONS ===
+
+bool Game::load() {
+    // Initialize window
+    if (!window_.initialize(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT)) {
+        return false;
+    }
+
+    // Create OpenGL context
+    if (!window_.createGLContext()) {
+        return false;
+    }
+
+    // Initialize renderer
+    if (!renderer_.initialize(WINDOW_WIDTH, WINDOW_HEIGHT)) {
+        return false;
+    }
+
+    // Initialize resource manager
+    if (!resourceManager_.initialize()) {
+        return false;
+    }
+
+    // Setup input callbacks
+    setupInput();
+
+    initialized_ = true;
+    return true;
+}
+
+bool Game::loadContent() {
+    if (!initialized_) {
+        std::cerr << "Game not initialized before loading content!" << std::endl;
+        return false;
+    }
+
+    // Load shaders
+    GLuint textShaderProgram = resourceManager_.loadShaderProgram(
+        "text", "shaders/text.vert", "shaders/text.frag");
+    
+    if (textShaderProgram == 0) {
+        return false;
+    }
+
+    // Load fonts
+    TTF_Font* font = resourceManager_.loadFont(
+        "main", "assets/NotoColorEmoji-Regular.ttf", 28);
+    
+    if (!font) {
+        return false;
+    }
+
+    // Create initial game objects
+    return createGameObjects();
+}
+
+void Game::gameLoop() {
+    running_ = true;
+    lastTime_ = std::chrono::high_resolution_clock::now();
+
+    while (running_) {
+        float deltaTime = calculateDeltaTime();
+        
+        // Handle input
+        inputManager_.processEvents();
+        
+        // Update game logic
+        update(deltaTime);
+        
+        // Render
+        render();
+
+        // Present frame
+        window_.swapBuffers();
+    }
+}
+
+void Game::update(float deltaTime) {
+    updateActors(deltaTime);
+}
+
+void Game::render() {
+    renderer_.beginFrame();
+    renderer_.renderActors(actors_);
+    renderer_.endFrame();
+}
+
+void Game::unload() {
+    // Clean up actors first
+    clearActors();
+
+    // Clean up subsystems (in reverse order of initialization)
+    resourceManager_.cleanup();
+    renderer_.cleanup();
+    window_.cleanup();
+
+    initialized_ = false;
+}
+
+// === HELPER FUNCTIONS ===
+
+void Game::setupInput() {
+    // Setup input callbacks using lambdas
+    inputManager_.setQuitCallback([this]() {
+        onQuit();
+    });
+
+    inputManager_.setKeyCallback([this](SDL_Keycode key, bool pressed) {
+        onKeyEvent(key, pressed);
+    });
+
+    inputManager_.setMouseButtonCallback([this](int button, int x, int y, bool pressed) {
+        onMouseButton(button, x, y, pressed);
+    });
+}
+
+bool Game::createGameObjects() {
+    // Get resources
+    GLuint textShaderProgram = resourceManager_.getShaderProgram("text");
+    TTF_Font* font = resourceManager_.getFont("main");
+
+    if (textShaderProgram == 0 || !font) {
+        std::cerr << "Required resources not loaded!" << std::endl;
+        return false;
+    }
+
+    // Create initial game objects
+    SDL_Color textColor = { 255, 0, 0, 255 }; // Red text
+
+    // Create an actor with a text component
+    auto textActor = std::make_unique<Actor>(300.0f, 250.0f);
+    auto textComponent = textActor->addComponent<TextComponent>("Game Text!", font, textColor);
+    textComponent->setShaderProgram(textShaderProgram);
+    
+    addActor(std::move(textActor));
+    
+    std::cout << "TextComponent created successfully" << std::endl;
+    return true;
+}
+
+void Game::updateActors(float deltaTime) {
+    // Remove inactive actors
+    actors_.erase(
+        std::remove_if(actors_.begin(), actors_.end(),
+            [](const std::unique_ptr<Actor>& actor) {
+                return !actor->isActive();
+            }),
+        actors_.end()
+    );
+
+    // Update all active actors - this implements the Update Method pattern
+    for (auto& actor : actors_) {
+        if (actor && actor->isActive()) {
+            actor->update(deltaTime);
+        }
+    }
+}
+
+float Game::calculateDeltaTime() {
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float deltaTime = std::chrono::duration<float>(currentTime - lastTime_).count();
+    lastTime_ = currentTime;
+    
+    // Cap delta time to prevent large jumps (e.g., when debugging)
+    const float maxDeltaTime = 1.0f / 60.0f; // 60 FPS
+    return std::min(deltaTime, maxDeltaTime);
+}
+
+// === EVENT HANDLERS ===
+
+void Game::onQuit() {
+    running_ = false;
+}
+
+void Game::onKeyEvent(SDL_Keycode key, bool pressed) {
+    if (pressed) {
+        switch (key) {
+            case SDLK_ESCAPE:
+                running_ = false;
+                break;
+            case SDLK_SPACE:
+                std::cout << "Space key pressed!" << std::endl;
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+void Game::onMouseButton(int button, int x, int y, bool pressed) {
+    if (pressed) {
+        std::cout << "Mouse button " << button << " clicked at (" << x << ", " << y << ")" << std::endl;
+    }
+}
+
+
