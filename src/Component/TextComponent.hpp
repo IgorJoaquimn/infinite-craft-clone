@@ -2,11 +2,11 @@
 #define TEXT_COMPONENT_HPP
 
 #include "Component/GraphicsComponent.hpp"
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include "Font/FreeTypeFont.hpp"
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <string>
+#include <memory>
 
 /**
  * TextComponent handles text rendering for an Actor.
@@ -14,7 +14,7 @@
  */
 class TextComponent : public GraphicsComponent {
 public:
-    TextComponent(const std::string& text, TTF_Font* font, SDL_Color color);
+    TextComponent(const std::string& text, std::shared_ptr<FreeTypeFont> font, glm::vec3 color);
     virtual ~TextComponent();
 
     /**
@@ -30,7 +30,7 @@ public:
     /**
      * Change the text content.
      */
-    void setText(const std::string& text, TTF_Font* font, SDL_Color color);
+    void setText(const std::string& text, std::shared_ptr<FreeTypeFont> font, glm::vec3 color);
 
     /**
      * Get the current text content.
@@ -44,23 +44,22 @@ public:
     float getHeight() const { return height_; }
 
     /**
-     * Set text color (requires re-rendering the texture).
+     * Set text color.
      */
-    void setColor(SDL_Color color, TTF_Font* font);
+    void setColor(glm::vec3 color);
 
 protected:
     void initializeGraphics() override;
     void cleanupGraphics() override;
 
 private:
-    void loadTexture(TTF_Font* font, SDL_Color color);
-    void setupVertexData(float x, float y);
+    void renderText(const std::string& text, float x, float y);
 
     std::string text_;
-    SDL_Color color_;
+    std::shared_ptr<FreeTypeFont> font_;
+    glm::vec3 color_;
     float width_, height_;
     
-    GLuint textureID_;
     GLuint VAO_, VBO_;
 };
 

@@ -98,8 +98,8 @@ bool Game::loadContent() {
     }
 
     // Load fonts
-    TTF_Font* font = resourceManager_.loadFont(
-        "main", "assets/NotoColorEmoji-Regular.ttf", 28);
+    auto font = resourceManager_.loadFont(
+        "main", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28);
     
     if (!font) {
         return false;
@@ -172,7 +172,7 @@ void Game::setupInput() {
 bool Game::createGameObjects() {
     // Get resources
     GLuint textShaderProgram = resourceManager_.getShaderProgram("text");
-    TTF_Font* font = resourceManager_.getFont("main");
+    auto font = resourceManager_.getFont("main");
 
     if (textShaderProgram == 0 || !font) {
         std::cerr << "Required resources not loaded!" << std::endl;
@@ -180,11 +180,11 @@ bool Game::createGameObjects() {
     }
 
     // Create initial game objects
-    SDL_Color textColor = { 255, 0, 0, 255 }; // Red text
+    glm::vec3 textColor(1.0f, 0.0f, 0.0f); // Red text
 
     // Create an actor with a text component
-    auto textActor = std::make_unique<Actor>(300.0f, 250.0f);
-    auto textComponent = textActor->addComponent<TextComponent>("Game Text!", font, textColor);
+    auto textActor = std::make_unique<Actor>(0.0f, 250.0f);
+    auto textComponent = textActor->addComponent<TextComponent>("Game Text", font, textColor);
     textComponent->setShaderProgram(textShaderProgram);
     
     addActor(std::move(textActor));

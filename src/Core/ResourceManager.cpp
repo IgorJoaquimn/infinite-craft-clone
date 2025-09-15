@@ -11,8 +11,8 @@ ResourceManager::~ResourceManager() {
 }
 
 bool ResourceManager::initialize() {
-    if (TTF_Init() == -1) {
-        std::cerr << "SDL_ttf could not initialize! TTF_Error: " << TTF_GetError() << std::endl;
+    if (!FreeTypeFont::initializeLibrary()) {
+        std::cerr << "FreeType could not initialize!" << std::endl;
         return false;
     }
 
@@ -51,16 +51,15 @@ GLuint ResourceManager::getShaderProgram(const std::string& name) const {
     return it != shaderPrograms_.end() ? it->second : 0;
 }
 
-TTF_Font* ResourceManager::loadFont(const std::string& name, const std::string& path, int size) {
+std::shared_ptr<FreeTypeFont> ResourceManager::loadFont(const std::string& name, const std::string& path, int size) {
     if (!initialized_) {
         std::cerr << "ResourceManager not initialized!" << std::endl;
         return nullptr;
     }
 
-    TTF_Font* font = TTF_OpenFont(path.c_str(), size);
-    if (!font) {
-        std::cerr << "Failed to load font " << name << " from " << path 
-                  << "! TTF_Error: " << TTF_GetError() << std::endl;
+    auto font = std::make_shared<FreeTypeFont>();
+    if (!font->loadFont(path, size)) {
+        std::cerr << "Failed to load font " << name << " from " << path << std::endl;
         return nullptr;
     }
 
@@ -69,7 +68,7 @@ TTF_Font* ResourceManager::loadFont(const std::string& name, const std::string& 
     return font;
 }
 
-TTF_Font* ResourceManager::getFont(const std::string& name) const {
+std::shared_ptr<FreeTypeFont> ResourceManager::getFont(const std::string& name) const {
     auto it = fonts_.find(name);
     return it != fonts_.end() ? it->second : nullptr;
 }
@@ -82,13 +81,10 @@ void ResourceManager::cleanup() {
     shaderPrograms_.clear();
 
     // Clean up fonts
-    for (auto& pair : fonts_) {
-        TTF_CloseFont(pair.second);
-    }
     fonts_.clear();
 
     if (initialized_) {
-        TTF_Quit();
+        FreeTypeFont::cleanupLibrary();
         initialized_ = false;
     }
 }

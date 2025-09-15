@@ -1,97 +1,89 @@
 #include "TextObject.hpp"
 #include <iostream>
 
-TextObject::TextObject(float x, float y, const std::string& text, TTF_Font* font, SDL_Color color)
-    : x(x), y(y), text(text), textureID(0), VAO(0), VBO(0) {
-    loadTexture(font, color);
-}
-
-TextObject::~TextObject() {
-    glDeleteTextures(1, &textureID);
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-}
-
-void TextObject::loadTexture(TTF_Font* font, SDL_Color color) {
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(font, text.c_str(), color);
-    if (!surface) {
-        std::cerr << "Unable to render text surface! SDL_ttf Error: " << TTF_GetError() << std::endl;
-        return;
-    }
-
-    // Convert to a consistent RGBA format
-    SDL_Surface* rgbaSurface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0);
-    SDL_FreeSurface(surface);
+TextObject::TextObject(float x, float y, const std::string& text, std::shared_ptr<FreeTypeFont> font, glm::vec3 color)
+    : x_(x), y_(y), text_(text), font_(font), color_(color), VAO_(0), VBO_(0) {
     
-    if (!rgbaSurface) {
-        std::cerr << "Unable to convert surface to RGBA format! SDL Error: " << SDL_GetError() << std::endl;
-        return;
-    }
-
-    this->width = rgbaSurface->w;
-    this->height = rgbaSurface->h;
-
-    // Create OpenGL texture
-    glGenTextures(1, &textureID);
-    glBindTexture(GL_TEXTURE_2D, textureID);
-
-    // Tell OpenGL how SDL_Surface stores its pixels
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgbaSurface->w, rgbaSurface->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgbaSurface->pixels);
+    // Initialize VAO and VBO for text rendering
+    glGenVertexArrays(1, &VAO_);
+    glGenBuffers(1, &VBO_);
     
-    // Check for OpenGL errors
-    GLenum error = glGetError();
-    if (error != GL_NO_ERROR) {
-        std::cerr << "OpenGL error in texture creation: " << error << std::endl;
-    }
+    glBindVertexArray(VAO_);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
     
-    // ADDED: Restore default alignment
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-
-    // Set texture options
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // Free the converted SDL surface
-    SDL_FreeSurface(rgbaSurface);
-
-    // Create VAO and VBO for the quad
-    float vertices[] = {
-        // pos      // tex (flipped vertically to fix upside-down text)
-        x,         y,          0.0f, 1.0f,  // bottom-left
-        x,         y + height, 0.0f, 0.0f,  // top-left  
-        x + width, y + height, 1.0f, 0.0f,  // top-right
-
-        x,         y,          0.0f, 1.0f,  // bottom-left
-        x + width, y + height, 1.0f, 0.0f,  // top-right
-        x + width, y,          1.0f, 1.0f   // bottom-right
-    };
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Vertex attribute
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
 
+TextObject::~TextObject() {
+    if (VAO_ != 0) {
+        glDeleteVertexArrays(1, &VAO_);
+    }
+    if (VBO_ != 0) {
+        glDeleteBuffers(1, &VBO_);
+    }
+}
+
 void TextObject::render() {
+    if (font_ && font_->isLoaded()) {
+        // Enable blending for transparency
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        
+        renderText();
+        
+        glDisable(GL_BLEND);
+    }
+}
+
+void TextObject::renderText() {
+    if (!font_ || !font_->isLoaded()) return;
+
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, textureID);
+    glBindVertexArray(VAO_);
 
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    float currentX = x_;
+
+    // Iterate through all characters
+    for (char c : text_) {
+        const Character& ch = font_->getCharacter(c);
+
+        float xpos = currentX + ch.bearing.x;
+        float ypos = y_ - (ch.size.y - ch.bearing.y);
+
+        float w = ch.size.x;
+        float h = ch.size.y;
+
+        // Update VBO for each character
+        float vertices[6][4] = {
+            { xpos,     ypos + h,   0.0f, 0.0f },            
+            { xpos,     ypos,       0.0f, 1.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos + w, ypos + h,   1.0f, 0.0f }           
+        };
+
+        // Render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.textureID);
+        
+        // Update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        
+        // Render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        
+        // Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+        currentX += (ch.advance >> 6); // Bitshift by 6 to get value in pixels (2^6 = 64)
+    }
+    
     glBindVertexArray(0);
-
     glBindTexture(GL_TEXTURE_2D, 0);
 }

@@ -1,10 +1,11 @@
 #ifndef RESOURCE_MANAGER_HPP
 #define RESOURCE_MANAGER_HPP
 
-#include <SDL2/SDL_ttf.h>
+#include "Font/FreeTypeFont.hpp"
 #include <GL/glew.h>
 #include <string>
 #include <unordered_map>
+#include <memory>
 #include <memory>
 
 // Forward declaration
@@ -20,7 +21,7 @@ public:
     ~ResourceManager();
 
     /**
-     * Initialize the resource manager (SDL_ttf, etc.)
+     * Initialize the resource manager (FreeType, etc.)
      */
     bool initialize();
 
@@ -39,12 +40,12 @@ public:
     /**
      * Load a font
      */
-    TTF_Font* loadFont(const std::string& name, const std::string& path, int size);
+    std::shared_ptr<FreeTypeFont> loadFont(const std::string& name, const std::string& path, int size);
 
     /**
      * Get a font by name
      */
-    TTF_Font* getFont(const std::string& name) const;
+    std::shared_ptr<FreeTypeFont> getFont(const std::string& name) const;
 
     /**
      * Cleanup all resources
@@ -58,7 +59,7 @@ private:
     GLuint createShaderProgram(GLuint vertexShader, GLuint fragmentShader);
 
     std::unordered_map<std::string, GLuint> shaderPrograms_;
-    std::unordered_map<std::string, TTF_Font*> fonts_;
+    std::unordered_map<std::string, std::shared_ptr<FreeTypeFont>> fonts_;
     bool initialized_;
 };
 

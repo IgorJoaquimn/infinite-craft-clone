@@ -6,8 +6,9 @@ set(PROJECT_NAME "infinite-craft-clone")
 project(${PROJECT_NAME})
 
 # --- Find required packages ---
-find_package(SDL2 2.30.0 REQUIRED)
-find_package(SDL2_ttf REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SDL2 REQUIRED sdl2)
+find_package(Freetype REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -27,6 +28,8 @@ set(SOURCES
     ${SRC_DIR}/Game/Game.cpp
     ${SRC_DIR}/Shader/Shader.cpp
     ${SRC_DIR}/Component/TextComponent.cpp
+    ${SRC_DIR}/TextObject/TextObject.cpp
+    ${SRC_DIR}/Font/FreeTypeFont.cpp
     ${SRC_DIR}/Core/Window.cpp
     ${SRC_DIR}/Core/Renderer.cpp
     ${SRC_DIR}/Core/InputManager.cpp
@@ -39,14 +42,14 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${SRC_DIR}
     ${SDL2_INCLUDE_DIRS}
-    ${SDL2_TTF_INCLUDE_DIRS}
+    ${FREETYPE_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
 )
 
 # --- Link all necessary libraries ---
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    SDL2::SDL2
-    SDL2_ttf::SDL2_ttf
+    ${SDL2_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
     GLEW::glew
     OpenGL::GL
     glm
