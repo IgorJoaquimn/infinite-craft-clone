@@ -1,152 +1,119 @@
-#ifndef ACTOR_HPP
-#define ACTOR_HPP
+// ----------------------------------------------------------------
+// Actor class following the asteroids game architecture
+// ----------------------------------------------------------------
 
-#include "Component/Component/Component.hpp"
+#pragma once
 #include <vector>
+#include <cstdint>
 #include <memory>
-#include <typeinfo>
-#include <algorithm>
+#include "../Math.h"
 
-/**
- * Actor class following the Component pattern from Game Programming Patterns.
- * An Actor is a container for components and implements the Update Method pattern.
- * It owns components and delegates behavior to them.
- */
-class Actor {
+// Forward declarations
+class Game;
+class Component;
+
+bool ComponentUpdateOrderCompare(Component* a, Component* b);
+
+enum class ActorState
+{
+    Active,
+    Paused,
+    Destroy
+};
+
+class Actor
+{
 public:
-    Actor(float x = 0.0f, float y = 0.0f) : x_(x), y_(y), active_(true) {}
-    
-    virtual ~Actor() {
-        cleanup();
+    Actor(class Game* game);
+    virtual ~Actor();
+
+    // Update function called from Game (not overridable)
+    void Update(float deltaTime);
+    // ProcessInput function called from Game (not overridable)
+    void ProcessInput(const uint8_t* keyState);
+
+    // Position getter/setter
+    const Vector2& GetPosition() const { return mPosition; }
+    void SetPosition(const Vector2& pos) { mPosition = pos; }
+
+    // Scale getter/setter
+    const Vector2& GetScale() const { return mScale; }
+    void SetScale(const Vector2& scale) { mScale = scale; }
+
+    // Rotation getter/setter
+    float GetRotation() const { return mRotation; }
+    void SetRotation(float rotation) { mRotation = rotation; }
+
+    // State getter/setter
+    ActorState GetState() const { return mState; }
+    void SetState(ActorState state) { mState = state; }
+
+    // Get Forward vector
+    Vector2 GetForward() const
+    {
+        return Vector2(Math::Sin(mRotation), -Math::Cos(mRotation));
     }
 
-    /**
-     * Update method called once per frame.
-     * This implements the Update Method pattern by updating all active components.
-     */
-    void update(float deltaTime) {
-        if (!active_) return;
+    // Model matrix
+    Matrix4 GetModelMatrix() const;
+    // Game getter
+    class Game* GetGame() { return mGame; }
 
-        // Update all active components
-        for (auto& component : components_) {
-            if (component && component->isActive()) {
-                component->update(*this, deltaTime);
+    // Components getter
+    const std::vector<std::unique_ptr<Component>>& GetComponents() const { return mComponents; }
+
+    // Returns component of type T, or null if doesn't exist
+    template <typename T>
+    T* GetComponent() const
+    {
+        for (auto& comp : mComponents)
+        {
+            T* t = dynamic_cast<T*>(comp.get());
+            if (t)
+            {
+                return t;
             }
         }
-    }
-
-    /**
-     * Add a component to this actor.
-     * The actor takes ownership of the component.
-     */
-    template<typename T>
-    T* addComponent(std::unique_ptr<T> component) {
-        static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
         
-        T* componentPtr = component.get();
-        components_.push_back(std::move(component));
-        componentPtr->initialize();
-        return componentPtr;
-    }
-
-    /**
-     * Create and add a component to this actor.
-     * Template arguments are forwarded to the component constructor.
-     */
-    template<typename T, typename... Args>
-    T* addComponent(Args&&... args) {
-        auto component = std::make_unique<T>(std::forward<Args>(args)...);
-        return addComponent(std::move(component));
-    }
-
-    /**
-     * Get the first component of the specified type.
-     * Returns nullptr if no component of that type is found.
-     */
-    template<typename T>
-    T* getComponent() const {
-        static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
-        
-        for (const auto& component : components_) {
-            T* typedComponent = dynamic_cast<T*>(component.get());
-            if (typedComponent) {
-                return typedComponent;
-            }
-        }
         return nullptr;
     }
 
-    /**
-     * Get all components of the specified type.
-     */
-    template<typename T>
-    std::vector<T*> getComponents() const {
-        static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
-        
-        std::vector<T*> result;
-        for (const auto& component : components_) {
-            T* typedComponent = dynamic_cast<T*>(component.get());
-            if (typedComponent) {
-                result.push_back(typedComponent);
-            }
-        }
-        return result;
+    // Add a component and return a pointer to it
+    template <typename T, typename... Args>
+    T* AddComponent(Args&&... args)
+    {
+        auto component = std::make_unique<T>(this, std::forward<Args>(args)...);
+        T* ptr = component.get();
+        AddComponent(std::move(component));
+        return ptr;
     }
 
-    /**
-     * Remove a specific component from this actor.
-     */
-    template<typename T>
-    bool removeComponent() {
-        static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
-        
-        auto it = std::find_if(components_.begin(), components_.end(),
-            [](const std::unique_ptr<Component>& component) {
-                return dynamic_cast<T*>(component.get()) != nullptr;
-            });
+    // Drawing method for rendering
+    virtual void OnDraw(class TextRenderer* textRenderer);
 
-        if (it != components_.end()) {
-            (*it)->cleanup();
-            components_.erase(it);
-            return true;
-        }
-        return false;
-    }
+protected:
+    class Game* mGame;
 
-    /**
-     * Remove all components from this actor.
-     */
-    void clearComponents() {
-        for (auto& component : components_) {
-            if (component) {
-                component->cleanup();
-            }
-        }
-        components_.clear();
-    }
+    // Any actor-specific update code (overridable)
+    virtual void OnUpdate(float deltaTime);
+    // Any actor-specific update code (overridable)
+    virtual void OnProcessInput(const uint8_t* keyState);
 
-    // Position getters and setters
-    float getX() const { return x_; }
-    float getY() const { return y_; }
-    void setX(float x) { x_ = x; }
-    void setY(float y) { y_ = y; }
-    void setPosition(float x, float y) { x_ = x; y_ = y; }
+    // Actor's state
+    ActorState mState;
 
-    // Active state
-    bool isActive() const { return active_; }
-    void setActive(bool active) { active_ = active; }
+    // Transform
+    Vector2 mPosition;
+    Vector2 mScale;
+    float mRotation;
 
-    // Component count
-    size_t getComponentCount() const { return components_.size(); }
+    // Components
+    std::vector<std::unique_ptr<Component>> mComponents;
 
 private:
-    void cleanup() {
-        clearComponents();
-    }
+    friend class Component;
 
-    std::vector<std::unique_ptr<Component>> components_;
-    float x_, y_;
-    bool active_;
+    // Adds component to Actor (this is automatically called
+    // in the component constructor)
+    void AddComponent(std::unique_ptr<Component> c);
 };
-
-#endif // ACTOR_HPP

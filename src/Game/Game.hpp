@@ -1,128 +1,52 @@
-#ifndef GAME_HPP
-#define GAME_HPP
+// ----------------------------------------------------------------
+// Game class following the asteroids game architecture
+// ----------------------------------------------------------------
 
-#include "Actor/Actor.hpp"
-#include "Core/Window/Window.hpp"
-#include "Core/Renderer/Renderer.hpp"
-#include "Core/InputManager/InputManager.hpp"
-#include "Core/ResourceManager/ResourceManager.hpp"
+#pragma once
+#include <SDL.h>
 #include <vector>
 #include <memory>
-#include <chrono>
+#include "../Math.h"
+#include "../Actor/Actor.hpp"
+#include "../Core/Renderer/Renderer.hpp"
+#include "../Core/TextRenderer/TextRenderer.hpp"
 
-/**
- * Game class following the Update Method pattern from Game Programming Patterns.
- * Now properly decoupled using separate classes for different concerns.
- */
-class Game {
+class Game
+{
 public:
     Game();
-    ~Game();
-    
-    /**
-     * Main entry point - runs the complete game loop
-     */
-    int run();
 
-    /**
-     * Add an actor to the game world.
-     */
-    void addActor(std::unique_ptr<Actor> actor);
+    bool Initialize();
+    void RunLoop();
+    void Shutdown();
+    void Quit() { mIsRunning = false; }
 
-    /**
-     * Remove an actor from the game world.
-     */
-    void removeActor(Actor* actor);
+    // Actor functions
+    void AddActor(std::unique_ptr<Actor> actor);
+    void RemoveActor(Actor* actor);
 
-    /**
-     * Get all actors in the game world.
-     */
-    const std::vector<std::unique_ptr<Actor>>& getActors() const;
-
-    /**
-     * Clear all actors from the game world.
-     */
-    void clearActors();
+    static const int WINDOW_WIDTH = 800;
+    static const int WINDOW_HEIGHT = 600;
 
 private:
-    // === LIFECYCLE FUNCTIONS ===
-    /**
-     * Initialize all subsystems
-     */
-    bool load();
+    void ProcessInput();
+    void UpdateGame();
+    void GenerateOutput();
 
-    /**
-     * Load game content (shaders, fonts, initial objects)
-     */
-    bool loadContent();
+    // All the actors in the game
+    std::vector<std::unique_ptr<Actor>> mActors;
+    std::vector<std::unique_ptr<Actor>> mPendingActors;
 
-    /**
-     * Main game loop
-     */
-    void gameLoop();
+    // SDL stuff
+    SDL_Window* mWindow;
+    SDL_GLContext mGLContext;
+    std::unique_ptr<Renderer> mRenderer;
+    std::unique_ptr<TextRenderer> mTextRenderer;
 
-    /**
-     * Update game logic - implements the Update Method pattern
-     */
-    void update(float deltaTime);
+    // Track elapsed time since game start
+    Uint32 mTicksCount;
 
-    /**
-     * Render all game objects
-     */
-    void render();
-
-    /**
-     * Cleanup all resources
-     */
-    void unload();
-
-    // === HELPER FUNCTIONS ===
-    /**
-     * Setup input callbacks
-     */
-    void setupInput();
-
-    /**
-     * Create initial game objects
-     */
-    bool createGameObjects();
-
-    /**
-     * Update all actors
-     */
-    void updateActors(float deltaTime);
-
-    /**
-     * Calculate delta time
-     */
-    float calculateDeltaTime();
-
-    // === EVENT HANDLERS ===
-    void onQuit();
-    void onKeyEvent(SDL_Keycode key, bool pressed);
-    void onMouseButton(int button, int x, int y, bool pressed);
-
-    // === MEMBER VARIABLES ===
-    // Core subsystems (decoupled from Game)
-    Window window_;
-    Renderer renderer_;
-    InputManager inputManager_;
-    ResourceManager resourceManager_;
-    
-    // Game state
-    bool running_;
-    bool initialized_;
-    
-    // Timing
-    std::chrono::high_resolution_clock::time_point lastTime_;
-    
-    // Game objects
-    std::vector<std::unique_ptr<Actor>> actors_;
-    
-    // Constants
-    static constexpr int WINDOW_WIDTH = 800;
-    static constexpr int WINDOW_HEIGHT = 600;
-    static constexpr char WINDOW_TITLE[] = "Infinite Craft Clone";
+    // Track if we're updating actors right now
+    bool mIsRunning;
+    bool mUpdatingActors;
 };
-
-#endif // GAME_HPP

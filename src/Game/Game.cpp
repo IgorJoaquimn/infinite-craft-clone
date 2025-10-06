@@ -1,251 +1,241 @@
+// ----------------------------------------------------------------
+// Game implementation following the asteroids game architecture
+// ----------------------------------------------------------------
+
 #include "Game.hpp"
-#include "Component/TextComponent/TextComponent.hpp"
+#include "../Actor/Actor.hpp"
+#include "../Actor/TextActor.hpp"
+#include "../Core/Renderer/Renderer.hpp"
+#include "../Core/TextRenderer/TextRenderer.hpp"
 #include <iostream>
+#include <algorithm>
 
-// === GAME CLASS IMPLEMENTATION ===
-
-Game::Game() 
-    : running_(false)
-    , initialized_(false) {
+Game::Game()
+    : mWindow(nullptr)
+    , mGLContext(nullptr)
+    , mRenderer(nullptr)
+    , mTextRenderer(nullptr)
+    , mTicksCount(0)
+    , mIsRunning(true)
+    , mUpdatingActors(false)
+{
 }
 
-Game::~Game() {
-    unload();
-}
-
-int Game::run() {
-    if (!load()) {
-        std::cerr << "Failed to initialize game!" << std::endl;
-        return 1;
+bool Game::Initialize()
+{
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
+        return false;
     }
 
-    if (!loadContent()) {
-        std::cerr << "Failed to load game content!" << std::endl;
-        return 1;
-    }
+    // Set OpenGL attributes
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-    gameLoop();
-    
-    return 0;
-}
-
-// === ACTOR MANAGEMENT ===
-
-void Game::addActor(std::unique_ptr<Actor> actor) {
-    actors_.push_back(std::move(actor));
-}
-
-void Game::removeActor(Actor* actor) {
-    actors_.erase(
-        std::remove_if(actors_.begin(), actors_.end(),
-            [actor](const std::unique_ptr<Actor>& a) {
-                return a.get() == actor;
-            }),
-        actors_.end()
-    );
-}
-
-const std::vector<std::unique_ptr<Actor>>& Game::getActors() const {
-    return actors_;
-}
-
-void Game::clearActors() {
-    actors_.clear();
-}
-
-// === LIFECYCLE FUNCTIONS ===
-
-bool Game::load() {
-    // Initialize window
-    if (!window_.initialize(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT)) {
+    mWindow = SDL_CreateWindow("Infinite Craft Clone", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
+    if (!mWindow)
+    {
+        SDL_Log("Failed to create window: %s", SDL_GetError());
         return false;
     }
 
     // Create OpenGL context
-    if (!window_.createGLContext()) {
+    mGLContext = SDL_GL_CreateContext(mWindow);
+    if (!mGLContext)
+    {
+        SDL_Log("Failed to create OpenGL context: %s", SDL_GetError());
         return false;
     }
 
-    // Initialize renderer
-    if (!renderer_.initialize(WINDOW_WIDTH, WINDOW_HEIGHT)) {
+    mRenderer = std::make_unique<Renderer>();
+    if (!mRenderer->Initialize(WINDOW_WIDTH, WINDOW_HEIGHT))
+    {
+        SDL_Log("Failed to initialize renderer");
         return false;
     }
 
-    // Initialize resource manager
-    if (!resourceManager_.initialize()) {
-        return false;
+    // Initialize text renderer
+    mTextRenderer = std::make_unique<TextRenderer>();
+    if (!mTextRenderer->Initialize())
+    {
+        SDL_Log("Warning: Failed to initialize text renderer");
     }
 
-    // Setup input callbacks
-    setupInput();
+    // Create text actors with simple ASCII text first
+    auto helloActor = std::make_unique<TextActor>(this, "Hello World!");
+    helloActor->SetPosition(Vector2(100.0f, 200.0f));
+    AddActor(std::move(helloActor));
+    
+    auto secondActor = std::make_unique<TextActor>(this, "Test 123");
+    secondActor->SetPosition(Vector2(100.0f, 250.0f));
+    AddActor(std::move(secondActor));
 
-    initialized_ = true;
+    mTicksCount = SDL_GetTicks();
+
     return true;
 }
 
-bool Game::loadContent() {
-    if (!initialized_) {
-        std::cerr << "Game not initialized before loading content!" << std::endl;
-        return false;
-    }
-
-    // Load shaders
-    GLuint textShaderProgram = resourceManager_.loadShaderProgram(
-        "text", "shaders/text.vert", "shaders/text.frag");
-    
-    if (textShaderProgram == 0) {
-        return false;
-    }
-
-    // Load fonts
-    auto font = resourceManager_.loadFont(
-        "main", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28);
-    
-    if (!font) {
-        return false;
-    }
-
-    // Create initial game objects
-    return createGameObjects();
-}
-
-void Game::gameLoop() {
-    running_ = true;
-    lastTime_ = std::chrono::high_resolution_clock::now();
-
-    while (running_) {
-        float deltaTime = calculateDeltaTime();
-        
-        // Handle input
-        inputManager_.processEvents();
-        
-        // Update game logic
-        update(deltaTime);
-        
-        // Render
-        render();
-
-        // Present frame
-        window_.swapBuffers();
+void Game::RunLoop()
+{
+    while (mIsRunning)
+    {
+        ProcessInput();
+        UpdateGame();
+        GenerateOutput();
     }
 }
 
-void Game::update(float deltaTime) {
-    updateActors(deltaTime);
-}
-
-void Game::render() {
-    renderer_.beginFrame();
-    renderer_.renderActors(actors_);
-    renderer_.endFrame();
-}
-
-void Game::unload() {
-    // Clean up actors first
-    clearActors();
-
-    // Clean up subsystems (in reverse order of initialization)
-    resourceManager_.cleanup();
-    renderer_.cleanup();
-    window_.cleanup();
-
-    initialized_ = false;
-}
-
-// === HELPER FUNCTIONS ===
-
-void Game::setupInput() {
-    // Setup input callbacks using lambdas
-    inputManager_.setQuitCallback([this]() {
-        onQuit();
-    });
-
-    inputManager_.setKeyCallback([this](SDL_Keycode key, bool pressed) {
-        onKeyEvent(key, pressed);
-    });
-
-    inputManager_.setMouseButtonCallback([this](int button, int x, int y, bool pressed) {
-        onMouseButton(button, x, y, pressed);
-    });
-}
-
-bool Game::createGameObjects() {
-    // Get resources
-    GLuint textShaderProgram = resourceManager_.getShaderProgram("text");
-    auto font = resourceManager_.getFont("main");
-
-    if (textShaderProgram == 0 || !font) {
-        std::cerr << "Required resources not loaded!" << std::endl;
-        return false;
+void Game::ProcessInput()
+{
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+    {
+        switch (event.type)
+        {
+            case SDL_QUIT:
+                Quit();
+                break;
+        }
     }
 
-    // Create initial game objects
-    glm::vec3 textColor(1.0f, 0.0f, 0.0f); // Red text
+    const Uint8* state = SDL_GetKeyboardState(nullptr);
+    if (state[SDL_SCANCODE_ESCAPE])
+    {
+        Quit();
+    }
 
-    // Create an actor with a text component
-    auto textActor = std::make_unique<Actor>(0.0f, 250.0f);
-    auto textComponent = textActor->addComponent<TextComponent>("Game Text", font, textColor);
-    textComponent->setShaderProgram(textShaderProgram);
-    
-    addActor(std::move(textActor));
-    
-    std::cout << "TextComponent created successfully" << std::endl;
-    return true;
+    // Process input for all Actors
+    mUpdatingActors = true;
+    for (auto& actor : mActors)
+    {
+        actor->ProcessInput(state);
+    }
+    mUpdatingActors = false;
 }
 
-void Game::updateActors(float deltaTime) {
-    // Remove inactive actors
-    actors_.erase(
-        std::remove_if(actors_.begin(), actors_.end(),
+void Game::UpdateGame()
+{
+    while (!SDL_TICKS_PASSED(SDL_GetTicks(), mTicksCount + 16));
+
+    float deltaTime = (SDL_GetTicks() - mTicksCount) / 1000.0f;
+    if (deltaTime > 0.05f)
+    {
+        deltaTime = 0.05f;
+    }
+
+    mTicksCount = SDL_GetTicks();
+
+    // Update all actors
+    mUpdatingActors = true;
+
+    for (auto& actor : mActors)
+    {
+        actor->Update(deltaTime);
+    }
+
+    mUpdatingActors = false;
+
+    // Move pending actors to mActors
+    for (auto& pending : mPendingActors)
+    {
+        mActors.emplace_back(std::move(pending));
+    }
+    mPendingActors.clear();
+
+    // Remove dead actors
+    mActors.erase(
+        std::remove_if(mActors.begin(), mActors.end(),
             [](const std::unique_ptr<Actor>& actor) {
-                return !actor->isActive();
+                return actor->GetState() == ActorState::Destroy;
             }),
-        actors_.end()
+        mActors.end()
     );
-
-    // Update all active actors - this implements the Update Method pattern
-    for (auto& actor : actors_) {
-        if (actor && actor->isActive()) {
-            actor->update(deltaTime);
-        }
-    }
 }
 
-float Game::calculateDeltaTime() {
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float deltaTime = std::chrono::duration<float>(currentTime - lastTime_).count();
-    lastTime_ = currentTime;
+void Game::GenerateOutput()
+{
+    mRenderer->BeginFrame();
     
-    // Cap delta time to prevent large jumps (e.g., when debugging)
-    const float maxDeltaTime = 1.0f / 60.0f; // 60 FPS
-    return std::min(deltaTime, maxDeltaTime);
-}
-
-// === EVENT HANDLERS ===
-
-void Game::onQuit() {
-    running_ = false;
-}
-
-void Game::onKeyEvent(SDL_Keycode key, bool pressed) {
-    if (pressed) {
-        switch (key) {
-            case SDLK_ESCAPE:
-                running_ = false;
-                break;
-            case SDLK_SPACE:
-                std::cout << "Space key pressed!" << std::endl;
-                break;
-            default:
-                break;
+    // Clear screen with dark background
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    // Render all actors
+    for (auto& actor : mActors)
+    {
+        if (actor->GetState() == ActorState::Active)
+        {
+            actor->OnDraw(mTextRenderer.get());
         }
     }
+    
+    mRenderer->EndFrame();
+    
+    SDL_GL_SwapWindow(mWindow);
 }
 
-void Game::onMouseButton(int button, int x, int y, bool pressed) {
-    if (pressed) {
-        std::cout << "Mouse button " << button << " clicked at (" << x << ", " << y << ")" << std::endl;
+void Game::AddActor(std::unique_ptr<Actor> actor)
+{
+    if (mUpdatingActors)
+    {
+        mPendingActors.emplace_back(std::move(actor));
+    }
+    else
+    {
+        mActors.emplace_back(std::move(actor));
     }
 }
 
+void Game::RemoveActor(Actor* actor)
+{
+    auto it = std::find_if(mActors.begin(), mActors.end(),
+        [actor](const std::unique_ptr<Actor>& a) {
+            return a.get() == actor;
+        });
 
+    if (it != mActors.end())
+    {
+        mActors.erase(it);
+    }
+
+    auto pendingIt = std::find_if(mPendingActors.begin(), mPendingActors.end(),
+        [actor](const std::unique_ptr<Actor>& a) {
+            return a.get() == actor;
+        });
+    
+    if (pendingIt != mPendingActors.end())
+    {
+        mPendingActors.erase(pendingIt);
+    }
+}
+
+void Game::Shutdown()
+{
+    // Clear actors (smart pointers will automatically clean up)
+    mIsRunning = false;
+    mActors.clear();
+    mPendingActors.clear();
+
+    if (mTextRenderer)
+    {
+        mTextRenderer.reset();
+    }
+
+    if (mRenderer)
+    {
+        mRenderer->Shutdown();
+        mRenderer.reset();
+    }
+
+    // Cleanup OpenGL context
+    if (mGLContext)
+    {
+        SDL_GL_DeleteContext(mGLContext);
+        mGLContext = nullptr;
+    }
+
+    SDL_DestroyWindow(mWindow);
+    SDL_Quit();
+}
